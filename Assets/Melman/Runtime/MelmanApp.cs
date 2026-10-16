@@ -7,7 +7,7 @@ public sealed class MelmanApp : MonoBehaviour {
  readonly List<Transform> ghosts=new List<Transform>(); Transform player; readonly List<Material> materials=new List<Material>();
  readonly Color ink=new Color(.035f,.055f,.12f), blue=new Color(.12f,.32f,.85f), mint=new Color(.2f,1,.75f), gold=new Color(1,.78f,.15f);
  GUIStyle title,text,button; int best;
- [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)] static void Boot(){if(FindObjectOfType<MelmanApp>()==null)new GameObject("Melman").AddComponent<MelmanApp>();}
+ [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)] static void Boot(){if(FindFirstObjectByType<MelmanApp>()==null)new GameObject("Melman").AddComponent<MelmanApp>();}
  void Awake(){
   best=PlayerPrefs.GetInt("Melman.Best",0);cam=Camera.main;if(cam==null)cam=new GameObject("Camera").AddComponent<Camera>();
   cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=ink;cam.tag="MainCamera";

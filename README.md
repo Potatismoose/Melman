@@ -1,17 +1,17 @@
 # Melman ⭐
 
-Ett labyrintäventyr till Melwin, byggt i C# för **Unity 2022.3.62f1 LTS**.
+Ett labyrintäventyr till Melwin, byggt i C# för **Unity 6000.6.6f1**.
 Samla stjärnorna, undvik spökena och slå ditt rekord!
 
 ## Spela i Unity
 
-1. Installera Unity Hub och Unity **2022.3.62f1**, med byggstöd för din målplattform.
+1. Installera Unity Hub och Unity **6000.6.6f1**, med byggstöd för din målplattform.
 2. Lägg till den här projektmappen i Hub och öppna den. Aktivera Unity med din egen giltiga licens vid behov.
-3. Första importen skapar scenen `Assets/Melman/Scenes/Melman.unity` och lägger den i Build Settings.
+3. Första importen skapar scenen `Assets/Melman/Scenes/Melman.unity` och lägger den i bygglistan.
 4. Tryck **Play**. Välj svårighetsgrad och tryck **Spela**.
 
 Om en annan scen är öppen: välj **Melman → Create or open game scene**.
-Bygg ett fristående spel via **File → Build Settings**. Välj Melman-scenen och målplattform.
+Bygg ett fristående spel via **File → Build Profiles**. Välj Melman-scenen och målplattform.
 
 | Kontroll | Funktion |
 | --- | --- |
@@ -30,6 +30,10 @@ Det är en sned översiktskamera, inte förstapersonsvy. Tangenternas riktning f
 - Gröna kraftkulor ger tillfälligt skydd. Samla alla stjärnor och kraftkulor för att gå vidare.
 - Banbonus: 250 × bannumret. Alla fem banor klarade ger vinst.
 - Rekordet sparas lokalt med Unity PlayerPrefs, gemensamt för svårighetsgraderna.
+
+Projektet använder Built-in Render Pipeline och det klassiska Input Manager-systemet.
+Under **Edit → Project Settings → Player → Active Input Handling**, välj
+**Input Manager (Old)** eller **Both** om Unity ber om ett val.
 
 ## Utveckling och tester
 
