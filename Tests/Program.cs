@@ -29,6 +29,13 @@ class Tests {
  }
  static void Main(){
   MotionTests();
+  foreach(var heading in Game.Directions){
+   Assert(FirstPersonControls.Direction(heading,0).Equals(heading),"FP forward");
+   Assert(FirstPersonControls.Direction(heading,2).Equals(new Cell(-heading.X,-heading.Y)),"FP reverse");
+   var right=FirstPersonControls.Direction(heading,1);
+   Assert(right.Equals(new Cell(-heading.Y,heading.X)),"FP right");
+   Assert(FirstPersonControls.Direction(right,-1).Equals(heading),"FP left");
+  }
   foreach(Difficulty difficulty in Enum.GetValues(typeof(Difficulty)))for(int seed=0;seed<30;seed++){
    var g=new Game(difficulty,seed);Assert(g.Lives==3&&g.Level==1,"Initial state");
    Assert(g.Ghosts.Count==(difficulty==Difficulty.Easy?2:3),"Difficulty ghost count");

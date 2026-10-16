@@ -16,11 +16,16 @@ Bygg ett fristående spel via **File → Build Profiles**. Välj Melman-scenen o
 | Kontroll | Funktion |
 | --- | --- |
 | Piltangenter / WASD | Flytta; figuren fortsätter i vald riktning. Tryck nästa sväng i förväg. |
-| Tab | Växla mellan rak 2D-vy och perspektivvy i 3D |
+| Tab | Växla mellan rak 2D-vy och förstapersonsvy i 3D |
 | P / Esc | Pausa eller fortsätt |
 
 3D-läget har en 2D-minikarta med väggar, stjärnor, Melman och spöken.
-Det är en sned översiktskamera, inte förstapersonsvy. Tangenternas riktning följer kartan.
+Kameran sitter i Melmans ögonhöjd och följer mjukt genom korridorerna.
+I förstapersonsläget betyder W/↑ framåt, A/← sväng vänster, D/→ sväng höger
+och S/↓ vänd om. Svängarna kan köas före korsningar. Kameran följer den
+faktiska färdriktningen; håll inte in en tangent för upprepade svängar.
+Minikartan är alltid nordorienterad, med en vit riktningsmarkör vid Melman.
+Tab återgår till översikten, där tangenterna följer kartans riktningar.
 
 Rörelser visas mjukt mellan rutorna. Nästa sväng sparas tills vägen öppnar sig,
 även om du släpper tangenten. En ny riktning ersätter den köade svängen.
@@ -65,7 +70,7 @@ Med en installerad och licensierad Unity-editor samt Linux Build Support:
 ## Status i molnmiljön
 
 .NET SDK 8.0.426 är installerat utanför repot i `/workspace/tooling/dotnet`.
-Spellogikens tester har körts: **18 660 kontroller godkända**.
+Spellogikens tester har körts: **18 676 kontroller godkända**.
 Unity-editor och Unity-licens saknas i denna miljö. Unity-kompilering, spelstart,
 kameror, input, rekordsparning och fristående bygge är därför **inte verifierade**.
 Öppna projektet i Unity enligt instruktionerna ovan för nästa kontroll.

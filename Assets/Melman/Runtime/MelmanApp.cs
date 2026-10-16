@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace Melman {
 public sealed class MelmanApp : MonoBehaviour {
- Game game; Difficulty difficulty=Difficulty.Normal; bool menu=true,paused,view3D; Movement movement; bool bestDirty;
+ Game game; Difficulty difficulty=Difficulty.Normal; bool menu=true,paused,view3D; Movement movement; bool bestDirty; Cell facing=new Cell(1,0);
  Camera cam; Transform board; readonly Dictionary<Cell,GameObject> pickups=new Dictionary<Cell,GameObject>();
  readonly List<Transform> ghosts=new List<Transform>(); Transform player; readonly List<Material> materials=new List<Material>();
  readonly Color ink=new Color(.035f,.055f,.12f), blue=new Color(.12f,.32f,.85f), mint=new Color(.2f,1,.75f), gold=new Color(1,.78f,.15f);
@@ -24,7 +24,7 @@ public sealed class MelmanApp : MonoBehaviour {
   if(board)Destroy(board.gameObject);foreach(var m in materials)Destroy(m);materials.Clear();pickups.Clear();ghosts.Clear();board=new GameObject("Labyrinth").transform;
   var wall=Mat(blue);var dot=Mat(gold);var power=Mat(mint);var yellow=Mat(gold);var floor=Mat(new Color(.06f,.09f,.18f));
   Shape("Floor",PrimitiveType.Cube,new Cell(9,9),new Vector3(19,.15f,19),floor,-.25f);
-  foreach(var c in game.Walls)Shape("Wall",PrimitiveType.Cube,c,new Vector3(.92f,.8f,.92f),wall,.3f);
+  foreach(var c in game.Walls)Shape("Wall",PrimitiveType.Cube,c,new Vector3(.92f,1.8f,.92f),wall,.75f);
   foreach(var c in game.Dots)pickups[c]=Shape("Spark",PrimitiveType.Sphere,c,Vector3.one*.16f,dot,.18f).gameObject;
   foreach(var c in game.Powers)pickups[c]=Shape("Power star",PrimitiveType.Sphere,c,Vector3.one*.4f,power,.25f).gameObject;
   player=Shape("Melman",PrimitiveType.Sphere,game.Player,Vector3.one*.72f,yellow,.45f);
@@ -32,9 +32,17 @@ public sealed class MelmanApp : MonoBehaviour {
   foreach(float x in new[]{-.15f,.15f}){var eye=Shape("Eye",PrimitiveType.Sphere,game.Player,Vector3.one*.12f,eyes,.8f);eye.SetParent(player);eye.localPosition=new Vector3(x,.38f,.12f);}
   Color[] colors={new Color(1,.3f,.45f),new Color(.6f,.4f,1),new Color(.2f,.85f,1)};
   for(int i=0;i<game.Ghosts.Count;i++)ghosts.Add(Shape("Ghost",PrimitiveType.Capsule,game.Ghosts[i],new Vector3(.6f,.45f,.6f),Mat(colors[i]),.45f));
-  movement=new Movement(game);SetCamera();
+  movement=new Movement(game);facing=game.Walkable(game.Player+new Cell(1,0))?new Cell(1,0):new Cell(0,1);SetCamera();
  }
- void SetCamera(){if(cam==null)return;cam.orthographic=!view3D;cam.orthographicSize=12;cam.fieldOfView=52;cam.transform.position=view3D?new Vector3(0,19,-16):new Vector3(0,25,0);cam.transform.LookAt(Vector3.zero,Vector3.forward);if(view3D)cam.transform.LookAt(Vector3.zero,Vector3.up);}
+ Vector3 FacingVector(){return new Vector3(facing.X,0,-facing.Y);}
+ void SetCamera(){
+  if(cam==null)return;
+  cam.orthographic=!view3D;cam.orthographicSize=12;cam.fieldOfView=78;cam.nearClipPlane=.03f;
+  if(player)foreach(var renderer in player.GetComponentsInChildren<Renderer>())renderer.enabled=!view3D;
+  if(view3D&&player){cam.transform.position=player.position+Vector3.up*.1f;cam.transform.rotation=Quaternion.LookRotation(FacingVector(),Vector3.up);}
+  else {cam.transform.position=new Vector3(0,25,0);cam.transform.LookAt(Vector3.zero,Vector3.forward);}
+ }
+ void RequestRelative(int turn){movement.Request(FirstPersonControls.Direction(facing,turn));}
  void Update(){
   if(Input.GetKeyDown(KeyCode.Tab)){view3D=!view3D;SetCamera();}
   if(menu||game==null)return;
@@ -42,13 +50,25 @@ public sealed class MelmanApp : MonoBehaviour {
   if(paused)return;
   // Capture key presses every frame, even between simulation steps. A turn
   // stays queued until its corridor opens; releasing the key does not lose it.
-  if(Input.GetKeyDown(KeyCode.UpArrow)||Input.GetKeyDown(KeyCode.W))movement.Request(new Cell(0,-1));
-  if(Input.GetKeyDown(KeyCode.DownArrow)||Input.GetKeyDown(KeyCode.S))movement.Request(new Cell(0,1));
-  if(Input.GetKeyDown(KeyCode.LeftArrow)||Input.GetKeyDown(KeyCode.A))movement.Request(new Cell(-1,0));
-  if(Input.GetKeyDown(KeyCode.RightArrow)||Input.GetKeyDown(KeyCode.D))movement.Request(new Cell(1,0));
+  if(view3D){
+   if(Input.GetKeyDown(KeyCode.UpArrow)||Input.GetKeyDown(KeyCode.W))RequestRelative(0);
+   if(Input.GetKeyDown(KeyCode.DownArrow)||Input.GetKeyDown(KeyCode.S))RequestRelative(2);
+   if(Input.GetKeyDown(KeyCode.LeftArrow)||Input.GetKeyDown(KeyCode.A))RequestRelative(-1);
+   if(Input.GetKeyDown(KeyCode.RightArrow)||Input.GetKeyDown(KeyCode.D))RequestRelative(1);
+  }else{
+   if(Input.GetKeyDown(KeyCode.UpArrow)||Input.GetKeyDown(KeyCode.W))movement.Request(new Cell(0,-1));
+   if(Input.GetKeyDown(KeyCode.DownArrow)||Input.GetKeyDown(KeyCode.S))movement.Request(new Cell(0,1));
+   if(Input.GetKeyDown(KeyCode.LeftArrow)||Input.GetKeyDown(KeyCode.A))movement.Request(new Cell(-1,0));
+   if(Input.GetKeyDown(KeyCode.RightArrow)||Input.GetKeyDown(KeyCode.D))movement.Request(new Cell(1,0));
+  }
+  int previousLives=game.Lives;
   movement.Advance(Mathf.Min(Time.deltaTime,.25f));
   float fraction=movement.Fraction;
   player.position=Vector3.Lerp(World(movement.PlayerFrom),World(game.Player),fraction)+Vector3.up*.45f;
+  var travel=new Cell(game.Player.X-movement.PlayerFrom.X,game.Player.Y-movement.PlayerFrom.Y);
+  if(System.Math.Abs(travel.X)+System.Math.Abs(travel.Y)==1)facing=travel;
+  if(game.Lives!=previousLives){facing=game.Walkable(game.Player+new Cell(1,0))?new Cell(1,0):new Cell(0,1);SetCamera();}
+  if(view3D){cam.transform.position=player.position+Vector3.up*.1f;cam.transform.rotation=Quaternion.RotateTowards(cam.transform.rotation,Quaternion.LookRotation(FacingVector(),Vector3.up),720*Time.deltaTime);}
   foreach(var pair in pickups)if(pair.Value&&!game.Dots.Contains(pair.Key)&&!game.Powers.Contains(pair.Key))Destroy(pair.Value);
   for(int i=0;i<ghosts.Count;i++){
    ghosts[i].position=Vector3.Lerp(World(movement.GhostsFrom[i]),World(game.Ghosts[i]),fraction)+Vector3.up*.45f;
@@ -69,11 +89,11 @@ public sealed class MelmanApp : MonoBehaviour {
    GUI.Label(new Rect(w/2-240,h/2-75,480,35),"REKORD  "+best,text);
    string[] names={"Lätt","Normal","Svår"};difficulty=(Difficulty)GUI.SelectionGrid(new Rect(w/2-230,h/2-25,460,44),(int)difficulty,names,3,button);
    if(GUI.Button(new Rect(w/2-170,h/2+40,340,50),"Spela",button))NewGame();
-   GUI.Label(new Rect(w/2-230,h/2+110,460,100),"Piltangenter / WASD: flytta\nTab: 2D / 3D    •    P / Esc: paus\nSamla alla stjärnor. Gröna kraftkulor gör spöken sårbara.",text);return;}
+   GUI.Label(new Rect(w/2-230,h/2+110,460,100),"Piltangenter / WASD: flytta\nTab: 2D / förstaperson    •    P / Esc: paus\nSamla alla stjärnor. Gröna kraftkulor gör spöken sårbara.",text);return;}
   Panel(new Rect(0,0,w,65));GUI.Label(new Rect(10,12,w-20,40),"MELMAN   •   Bana "+game.Level+" / "+Game.LevelCount+"   •   Poäng "+game.Score+"   •   Liv "+game.Lives+"   •   Rekord "+best,text);
-  if(GUI.Button(new Rect(15,h-52,145,40),view3D?"2D-vy [Tab]":"3D-vy [Tab]",button)){view3D=!view3D;SetCamera();}
+  if(GUI.Button(new Rect(15,h-52,145,40),view3D?"2D-vy [Tab]":"FP-vy [Tab]",button)){view3D=!view3D;SetCamera();}
   if(GUI.Button(new Rect(175,h-52,110,40),"Paus",button))paused=!paused;
-  if(view3D)Minimap(w-210,80,190);
+  if(view3D){Minimap(w-210,80,190);GUI.Label(new Rect(295,h-52,w-305,40),"W/↑ framåt · A/← vänster · D/→ höger · S/↓ vänd",text);}
   if(game.PowerTicks>0)GUI.Label(new Rect(0,h-98,w,35),"STJÄRNKRAFT! "+game.PowerTicks,text);
   if(paused||game.Phase!=Phase.Playing){Panel(new Rect(w/2-240,h/2-140,480,280));string heading=paused?"Paus":game.Phase==Phase.LevelComplete?"Bana klar!":game.Phase==Phase.Won?"Du vann, stjärnspelare!":"Spelet är slut";
    GUI.Label(new Rect(w/2-220,h/2-115,440,55),heading,text);
@@ -85,7 +105,9 @@ public sealed class MelmanApp : MonoBehaviour {
  void Panel(Rect r){var old=GUI.color;GUI.color=new Color(.025f,.04f,.09f,.96f);GUI.DrawTexture(r,Texture2D.whiteTexture);GUI.color=old;}
  void Tile(Rect r,Color c){var old=GUI.color;GUI.color=c;GUI.DrawTexture(r,Texture2D.whiteTexture);GUI.color=old;}
  void Minimap(float x,float y,float size){Panel(new Rect(x-5,y-5,size+10,size+10));float s=size/Game.Size;for(int row=0;row<Game.Size;row++)for(int col=0;col<Game.Size;col++){var c=new Cell(col,row);if(game.Walls.Contains(c))Tile(new Rect(x+col*s,y+row*s,s,s),blue);else if(game.Dots.Contains(c)||game.Powers.Contains(c))Tile(new Rect(x+col*s+s*.4f,y+row*s+s*.4f,s*.2f,s*.2f),Color.white);}
-  foreach(var c in game.Ghosts)Tile(new Rect(x+c.X*s,y+c.Y*s,s,s),game.PowerTicks>0?mint:Color.magenta);Tile(new Rect(x+game.Player.X*s,y+game.Player.Y*s,s,s),gold);
+  foreach(var c in game.Ghosts)Tile(new Rect(x+c.X*s,y+c.Y*s,s,s),game.PowerTicks>0?mint:Color.magenta);float px=player.position.x+9,py=9-player.position.z;
+  Tile(new Rect(x+px*s,y+py*s,s,s),gold);
+  Tile(new Rect(x+(px+.5f+facing.X*.75f)*s-s*.2f,y+(py+.5f+facing.Y*.75f)*s-s*.2f,s*.4f,s*.4f),Color.white);
  }
  void OnDestroy(){foreach(var m in materials)if(m)Destroy(m);}
 }

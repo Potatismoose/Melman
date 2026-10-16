@@ -88,4 +88,13 @@ public sealed class Movement {
  }
 }
 
+public static class FirstPersonControls {
+ // Grid Y grows south; positive quarter-turns rotate clockwise.
+ public static Cell Direction(Cell facing,int turn){
+  int turns=((turn%4)+4)%4;
+  for(int i=0;i<turns;i++)facing=new Cell(-facing.Y,facing.X);
+  return facing;
+ }
+}
+
 }
