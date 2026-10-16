@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace Melman {
 public sealed class MelmanApp : MonoBehaviour {
- Game game; Difficulty difficulty=Difficulty.Normal; bool menu=true,paused,view3D; float timer; Cell direction;
+ Game game; Difficulty difficulty=Difficulty.Normal; bool menu=true,paused,view3D; Movement movement; bool bestDirty;
  Camera cam; Transform board; readonly Dictionary<Cell,GameObject> pickups=new Dictionary<Cell,GameObject>();
  readonly List<Transform> ghosts=new List<Transform>(); Transform player; readonly List<Material> materials=new List<Material>();
  readonly Color ink=new Color(.035f,.055f,.12f), blue=new Color(.12f,.32f,.85f), mint=new Color(.2f,1,.75f), gold=new Color(1,.78f,.15f);
@@ -19,7 +19,7 @@ public sealed class MelmanApp : MonoBehaviour {
   var o=GameObject.CreatePrimitive(shape);o.name=label;o.transform.SetParent(board);o.transform.position=World(c)+Vector3.up*height;o.transform.localScale=scale;o.GetComponent<Renderer>().sharedMaterial=mat;var collider=o.GetComponent<Collider>();if(collider)Destroy(collider);return o.transform;
  }
  Vector3 World(Cell c){return new Vector3(c.X-9,0,9-c.Y);}
- void NewGame(){game=new Game(difficulty,System.Environment.TickCount);menu=false;paused=false;direction=new Cell();Build();}
+ void NewGame(){game=new Game(difficulty,System.Environment.TickCount);menu=false;paused=false;Build();}
  void Build(){
   if(board)Destroy(board.gameObject);foreach(var m in materials)Destroy(m);materials.Clear();pickups.Clear();ghosts.Clear();board=new GameObject("Labyrinth").transform;
   var wall=Mat(blue);var dot=Mat(gold);var power=Mat(mint);var yellow=Mat(gold);var floor=Mat(new Color(.06f,.09f,.18f));
@@ -32,27 +32,35 @@ public sealed class MelmanApp : MonoBehaviour {
   foreach(float x in new[]{-.15f,.15f}){var eye=Shape("Eye",PrimitiveType.Sphere,game.Player,Vector3.one*.12f,eyes,.8f);eye.SetParent(player);eye.localPosition=new Vector3(x,.38f,.12f);}
   Color[] colors={new Color(1,.3f,.45f),new Color(.6f,.4f,1),new Color(.2f,.85f,1)};
   for(int i=0;i<game.Ghosts.Count;i++)ghosts.Add(Shape("Ghost",PrimitiveType.Capsule,game.Ghosts[i],new Vector3(.6f,.45f,.6f),Mat(colors[i]),.45f));
-  timer=0;SetCamera();
+  movement=new Movement(game);SetCamera();
  }
  void SetCamera(){if(cam==null)return;cam.orthographic=!view3D;cam.orthographicSize=12;cam.fieldOfView=52;cam.transform.position=view3D?new Vector3(0,19,-16):new Vector3(0,25,0);cam.transform.LookAt(Vector3.zero,Vector3.forward);if(view3D)cam.transform.LookAt(Vector3.zero,Vector3.up);}
  void Update(){
   if(Input.GetKeyDown(KeyCode.Tab)){view3D=!view3D;SetCamera();}
   if(menu||game==null)return;
   if(Input.GetKeyDown(KeyCode.Escape)||Input.GetKeyDown(KeyCode.P))paused=!paused;
-  if(paused||game.Phase!=Phase.Playing)return;
-  Cell desired=direction;
-  if(Input.GetKey(KeyCode.UpArrow)||Input.GetKey(KeyCode.W))desired=new Cell(0,-1);
-  if(Input.GetKey(KeyCode.DownArrow)||Input.GetKey(KeyCode.S))desired=new Cell(0,1);
-  if(Input.GetKey(KeyCode.LeftArrow)||Input.GetKey(KeyCode.A))desired=new Cell(-1,0);
-  if(Input.GetKey(KeyCode.RightArrow)||Input.GetKey(KeyCode.D))desired=new Cell(1,0);
-  timer+=Time.deltaTime;if(timer<game.TickSeconds)return;timer=0;
-  if(game.Walkable(game.Player+desired))direction=desired;
-  game.Step(direction);
-  player.position=World(game.Player)+Vector3.up*.45f;
+  if(paused)return;
+  // Capture key presses every frame, even between simulation steps. A turn
+  // stays queued until its corridor opens; releasing the key does not lose it.
+  if(Input.GetKeyDown(KeyCode.UpArrow)||Input.GetKeyDown(KeyCode.W))movement.Request(new Cell(0,-1));
+  if(Input.GetKeyDown(KeyCode.DownArrow)||Input.GetKeyDown(KeyCode.S))movement.Request(new Cell(0,1));
+  if(Input.GetKeyDown(KeyCode.LeftArrow)||Input.GetKeyDown(KeyCode.A))movement.Request(new Cell(-1,0));
+  if(Input.GetKeyDown(KeyCode.RightArrow)||Input.GetKeyDown(KeyCode.D))movement.Request(new Cell(1,0));
+  movement.Advance(Mathf.Min(Time.deltaTime,.25f));
+  float fraction=movement.Fraction;
+  player.position=Vector3.Lerp(World(movement.PlayerFrom),World(game.Player),fraction)+Vector3.up*.45f;
   foreach(var pair in pickups)if(pair.Value&&!game.Dots.Contains(pair.Key)&&!game.Powers.Contains(pair.Key))Destroy(pair.Value);
-  for(int i=0;i<ghosts.Count;i++){ghosts[i].position=World(game.Ghosts[i])+Vector3.up*.45f;ghosts[i].GetComponent<Renderer>().sharedMaterial.color=game.PowerTicks>0?mint:(i==0?new Color(1,.3f,.45f):i==1?new Color(.6f,.4f,1):new Color(.2f,.85f,1));}
-  if(game.Score>best){best=game.Score;PlayerPrefs.SetInt("Melman.Best",best);PlayerPrefs.Save();}
+  for(int i=0;i<ghosts.Count;i++){
+   ghosts[i].position=Vector3.Lerp(World(movement.GhostsFrom[i]),World(game.Ghosts[i]),fraction)+Vector3.up*.45f;
+   ghosts[i].GetComponent<Renderer>().sharedMaterial.color=game.PowerTicks>0?mint:(i==0?new Color(1,.3f,.45f):i==1?new Color(.6f,.4f,1):new Color(.2f,.85f,1));
+  }
+  if(game.Score>best){best=game.Score;bestDirty=true;}
+  if(game.Phase!=Phase.Playing)SaveBest();
  }
+ void SaveBest(){if(!bestDirty)return;PlayerPrefs.SetInt("Melman.Best",best);PlayerPrefs.Save();bestDirty=false;}
+ void OnApplicationPause(bool value){if(value)SaveBest();}
+ void OnApplicationQuit(){SaveBest();}
+
  void Styles(){if(title!=null)return;title=new GUIStyle(GUI.skin.label){fontSize=54,fontStyle=FontStyle.Bold,alignment=TextAnchor.MiddleCenter};title.normal.textColor=gold;
   text=new GUIStyle(GUI.skin.label){fontSize=19,alignment=TextAnchor.MiddleCenter,wordWrap=true};text.normal.textColor=Color.white;
   button=new GUIStyle(GUI.skin.button){fontSize=20,fixedHeight=44};}
@@ -70,8 +78,8 @@ public sealed class MelmanApp : MonoBehaviour {
   if(paused||game.Phase!=Phase.Playing){Panel(new Rect(w/2-240,h/2-140,480,280));string heading=paused?"Paus":game.Phase==Phase.LevelComplete?"Bana klar!":game.Phase==Phase.Won?"Du vann, stjärnspelare!":"Spelet är slut";
    GUI.Label(new Rect(w/2-220,h/2-115,440,55),heading,text);
    GUI.Label(new Rect(w/2-220,h/2-55,440,35),"Poäng: "+game.Score,text);
-   if(GUI.Button(new Rect(w/2-170,h/2,340,45),paused?"Fortsätt":game.Phase==Phase.LevelComplete?"Nästa bana":"Spela igen",button)){if(paused)paused=false;else if(game.Phase==Phase.LevelComplete){game.NextLevel();direction=new Cell();Build();}else NewGame();}
-   if(GUI.Button(new Rect(w/2-170,h/2+60,340,45),"Huvudmeny",button)){menu=true;paused=false;if(board)Destroy(board.gameObject);}
+   if(GUI.Button(new Rect(w/2-170,h/2,340,45),paused?"Fortsätt":game.Phase==Phase.LevelComplete?"Nästa bana":"Spela igen",button)){if(paused)paused=false;else if(game.Phase==Phase.LevelComplete){game.NextLevel();Build();}else NewGame();}
+   if(GUI.Button(new Rect(w/2-170,h/2+60,340,45),"Huvudmeny",button)){SaveBest();menu=true;paused=false;if(board)Destroy(board.gameObject);}
   }
  }
  void Panel(Rect r){var old=GUI.color;GUI.color=new Color(.025f,.04f,.09f,.96f);GUI.DrawTexture(r,Texture2D.whiteTexture);GUI.color=old;}

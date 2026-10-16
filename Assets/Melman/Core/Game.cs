@@ -57,4 +57,35 @@ public sealed class Game {
  static int Distance(Cell a,Cell b){return Math.Abs(a.X-b.X)+Math.Abs(a.Y-b.Y);}
  public void NextLevel(){if(Phase!=Phase.LevelComplete)return;Level++;Build();}
 }
+// Fixed simulation steps with a retained turn request and frame interpolation.
+public sealed class Movement {
+ readonly Game game;
+ Cell direction, requested;
+ bool started;
+ float elapsed;
+ public Cell PlayerFrom {get;private set;}
+ public readonly List<Cell> GhostsFrom=new List<Cell>();
+ public float Fraction {get{return Math.Min(1f,elapsed/game.TickSeconds);}}
+ public Movement(Game game){this.game=game;Snapshot();}
+ void Snapshot(){PlayerFrom=game.Player;GhostsFrom.Clear();GhostsFrom.AddRange(game.Ghosts);}
+ public void Request(Cell value){if(Math.Abs(value.X)+Math.Abs(value.Y)==1)requested=value;}
+ public void Advance(float seconds){
+  if(seconds<0)throw new ArgumentOutOfRangeException(nameof(seconds));
+  if(!started){
+   if(!game.Walkable(game.Player+requested)||requested.Equals(new Cell()))return;
+   started=true;Tick();
+  }
+  elapsed+=seconds;
+  while(started&&elapsed>=game.TickSeconds&&game.Phase==Phase.Playing){elapsed-=game.TickSeconds;Tick();}
+ }
+ void Tick(){
+  Snapshot();
+  if(game.Walkable(game.Player+requested))direction=requested;
+  int lives=game.Lives;game.Step(direction);
+  if(game.Lives!=lives){Snapshot();direction=new Cell();requested=new Cell();started=false;elapsed=0;}
+  for(int i=0;i<GhostsFrom.Count&&i<game.Ghosts.Count;i++)
+   if(Math.Abs(GhostsFrom[i].X-game.Ghosts[i].X)+Math.Abs(GhostsFrom[i].Y-game.Ghosts[i].Y)>1)GhostsFrom[i]=game.Ghosts[i];
+ }
+}
+
 }
